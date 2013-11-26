@@ -832,6 +832,9 @@ function Playlist() {
                 if (tracks[i].backendid == which) {
                     $('.item[name="'+self.index+'"]').removeClass('playlisttitle').addClass('playlistcurrenttitle');
                     $('.track[romprid="'+which+'"]').removeClass('playlistitem').addClass('playlistcurrentitem');
+                    $('html, body, #pscroller').animate({
+                        scrollTop: $('.track[romprid="'+which+'"]').offset().top - $('#sortable').offset().top - $('#pscroller').height()/2
+                    }, 500);
                     result = tracks[i];
                     break;
                 }
