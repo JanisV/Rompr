@@ -93,6 +93,7 @@ close_mpd($connection);
 <link rel="stylesheet" type="text/css" href="layout.css" />
 <link rel="stylesheet" type="text/css" href="tiptip/tipTip.css" />
 <link type="text/css" href="jqueryui1.8.16/css/start/jquery-ui-1.8.23.custom.css" rel="stylesheet" />
+<link href="custom-scrollbar-plugin/css/jquery.mCustomScrollbar.css" rel="stylesheet" />
 <?php
 if ($mobile != "no") {
 print '<link rel="stylesheet" type="text/css" href="layout_mobile.css" />'."\n";
@@ -107,6 +108,7 @@ print '<link id="theme" rel="stylesheet" type="text/css" href="'.$prefs['theme']
 <!-- TipTip jQuery tooltip plugin -->
 <!-- http://code.drewwilson.com/entry/tiptip-jquery-plugin -->
 <script type="text/javascript" src="tiptip/jquery.tipTip.js"></script>
+<script type="text/javascript" src="custom-scrollbar-plugin/js/jquery.mCustomScrollbar.concat.min.js"></script>
 <?php
 if ($mobile != "no") {
     print '<script type="text/javascript" src="jquery.touchwipe.min.js"></script>'."\n";
@@ -418,6 +420,27 @@ $(document).ready(function(){
 
     sbWidth = scrollbarWidth();
     $(".lettuce").tipTip({delay: 1000});
+
+<?php
+if ($mobile == "no") {
+?>
+    $.each([ "#sources", "#infopane", "#pscroller" ], function( index, value ) {
+        $(value).mCustomScrollbar({
+<?php
+  if ($prefs['theme'] == "Light.css" || $prefs['theme'] == "BrushedAluminium.css")
+    print "     theme:'dark-thick',\n";
+  else
+    print "     theme:'light-thick',\n";
+?>
+            scrollInertia:80,
+            advanced:{
+                updateOnContentResize: true
+            }
+        });
+    });
+<?php
+}
+?>
 
 });
 
