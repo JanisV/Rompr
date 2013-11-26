@@ -225,6 +225,8 @@ function LastFM(user) {
         getInfo : function(options, callback, failcallback) {
             if (username != "") { options.username = username; }
             addGetOptions(options, "track.getInfo");
+            if (prefs.lastfmlang)
+                options.lang = lang;
             LastFMGetRequest(
                 options,
                 callback,
@@ -315,6 +317,8 @@ function LastFM(user) {
             addGetOptions(options, "album.getInfo");
             if (username != "") { options.username = username }
             options.autocorrect = prefs.lastfm_autocorrect ? 1 : 0;
+            if (prefs.lastfmlang)
+                options.lang = lang;
             LastFMGetRequest(
                 options,
                 callback,
@@ -371,6 +375,8 @@ function LastFM(user) {
 
         getInfo: function(options, callback, failcallback) {
             addGetOptions(options, "artist.getInfo");
+            if (prefs.lastfmlang)
+                options.lang = lang;
             if (username != "") { options.username = username }
             LastFMGetRequest(
                 options,

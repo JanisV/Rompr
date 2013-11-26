@@ -117,4 +117,8 @@ var scrobwrangler = null;
 var serverTimeOffset = 0;
 var prefsbuttons = ["newimages/button-off.png", "newimages/button-on.png"];
 
+<?php
+print "var lang = '".substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2)."';\n";
+?>
+
 </script>
