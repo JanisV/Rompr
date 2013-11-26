@@ -832,9 +832,8 @@ function Playlist() {
                 if (tracks[i].backendid == which) {
                     $('.item[name="'+self.index+'"]').removeClass('playlisttitle').addClass('playlistcurrenttitle');
                     $('.track[romprid="'+which+'"]').removeClass('playlistitem').addClass('playlistcurrentitem');
-                    $('html, body, #pscroller').animate({
-                        scrollTop: $('.track[romprid="'+which+'"]').offset().top - $('#sortable').offset().top - $('#pscroller').height()/2
-                    }, 500);
+//                    $('#pscroller').mCustomScrollbar("scrollTo", $('.track[romprid="'+which+'"]').offset().top - $('#sortable').offset().top);
+                    $('#pscroller').mCustomScrollbar("scrollTo", '.track[romprid="'+which+'"]');
                     result = tracks[i];
                     break;
                 }
