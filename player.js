@@ -27,7 +27,7 @@ function multiProtocolController() {
 
 
     /* Things we're missing:
-            song - need to try and remove dependence on this completely. We have it but it's asynchronous
+            song - need to try and remove dependence on this completely
 
             Name - does this even have a meaning with mopidy?
             	 - currently this needs to be undefined
@@ -109,12 +109,16 @@ function multiProtocolController() {
 
             mopidy.on("event:trackPlaybackStarted", function(data) {
                 debug.log("PLAYER","Track Playback Started",data);
-                mopidy.playback.getTracklistPosition().then( function(data) { self.status.song = data });
+                self.status.song = mopidy.tracklist.index(data);
 		        self.status.songid = data.tl_track.tlid || 0;
 		        self.status.file = data.tl_track.track.uri;
 		        self.status.Date = data.tl_track.track.date;
-		        self.status.bitrate = data.tl_track.bitrate;
-		        self.status.Title = data.tl_track.name;
+		        self.status.bitrate = data.tl_track.track.bitrate || 'None';
+		        self.status.Title = data.tl_track.track.name;
+		        self.status.performers = data.tl_track.track.performers;
+		        self.status.composers = data.tl_track.track.composers;
+		        self.status.Genre = data.tl_track.track.genre;
+		        self.status.comment = data.tl_track.track.comment;
 		        self.status.elapsed = 0;
 		        infobar.setStartTime(0);
 		        playlist.checkProgress();
@@ -135,13 +139,18 @@ function multiProtocolController() {
 			});
 
             mopidy.on("event:trackPlaybackEnded", function(data) {
-	        	// Workaround for mopidy bug where 'single' doesn't work.
 	        	if (self.status.single == 1) {
-	        		self.http.stop();
-	        		mopidy.playback.setSingle(false);
+	        		//self.http.stop();
+	        		mopidy.tracklist.setSingle(false);
 	        		self.status.single = 0;
 	        	}
                 debug.log("PLAYER","Track Playback Ended",data);
+            });
+
+            mopidy.on("event:volumeChanged", function(data) {
+            	debug.debug("PLAYER", "Mopidy volume has changed to ",data);
+            	self.status.volume = data.volume;
+            	infobar.updateWindowValues();
             });
 
     	}
@@ -149,7 +158,7 @@ function multiProtocolController() {
     	function startPlaybackFromPos(playpos) {
         	debug.log("PLAYER","addTracks winding up to start playback...");
 		    mopidy.tracklist.getTlTracks().then( function (tracklist) {
-            	debug.log("PLAYER","addTracks starting playback as position",playpos);
+            	debug.log("PLAYER","addTracks starting playback at position",playpos);
 	            // Don't call playByPosition, we want to let the trackListChanged event update our
 	            // local copy of the tracklist, not here, as things may get out of sync
 	            playTlTrack(tracklist[playpos]);
@@ -190,7 +199,7 @@ function multiProtocolController() {
 
 	    	disconnected: function() {
 		        debug.warn("PLAYER","Mopidy Has Gone Offline");
-		        infobar.notify(infobar.ERROR, "The connection to Mopidy has been lost!")
+		        infobar.notify(infobar.ERROR, language.gettext("mopidy_down"));
 		        isReady = false;
 		        self.controller = self.mpd;
 		        self.mpd.reloadPlaylists();
@@ -212,31 +221,14 @@ function multiProtocolController() {
 	    	},
 
 	    	updateCollection: function(cmd) {
-		        prepareForLiftOff("Updating Collection");
-		        prepareForLiftOff2("Scanning Files");
+		        prepareForLiftOff(language.gettext("label_updating"));
+		        // prepareForLiftOff2("Scanning Files");
 		        debug.log("PLAYER","Updating collection with command", cmd);
-	    		switch (cmd) {
-	    			case "update":
-			            mopidy.library.refresh().then( function() { checkPoll({data: 'dummy' }) });
-			           	break;
-
-			        case "rescan":
-		                $.ajax({
-		                    type: 'GET',
-		                    url: 'doMopidyScan.php',
-		                    cache: false,
-		                    timeout: 1800000,
-		                    success: function() {
-	                            debug.log("PLAYER","Forcing mopidy to reload its library");
-	                            mopidy.library.refresh().then( function() { checkPoll({data: 'dummy' }) });
-		                    },
-		                    error: function() {
-		                        alert("Failed to create mopidy tag cache");
-		                        checkPoll({data: 'dummy' });
-		                    }
-		                });
-		                break;
-		        }
+		        // Running mopidy local scan and parsing the tag cache is no
+		        // longer supported as it's impossible to make it work in all situations.
+		        // Mopidy will soon support updating from a client, hopefully
+		        // by adding it to this command.
+	            mopidy.library.refresh().then( function() { checkPoll({data: 'dummy' }) });
 	    	},
 
 	    	reloadAlbumsList: function(uri) {
@@ -244,14 +236,14 @@ function multiProtocolController() {
 	            	// This means we want to update the cache
 	                debug.log("PLAYER","Getting list of files using mopidy websocket search");
 	                var be = new Array();
-	                if (prefs.use_mopidy_file_backend) {
+	                if (urischemes.hasOwnProperty('local')) {
 	                    be.push('local:');
 	                }
-	                if (prefs.use_mopidy_beets_backend) {
+	                if (urischemes.hasOwnProperty('beets')) {
 	                    be.push('beets:');
 	                }
 	                if (be.length == 0) {
-	                    //alert("You have not chosen a backend to build a collection with!");
+	                	debug.warn("PLAYER","No backends available for creating collection");
 	                    $("#collection").empty();
 	                    return 0;
 	                }
@@ -267,7 +259,7 @@ function multiProtocolController() {
 	                            },
 	                            error: function(data) {
 	                                $("#collection").empty();
-	                                alert("Failed to generate albums list!");
+	                                alert(language.gettext("label_update_error"));
 	                            	debug.error("PLAYER","failed to generate albums list",data);
 	                            }
 	                        });
@@ -297,7 +289,7 @@ function multiProtocolController() {
 	    	},
 
 	    	deletePlaylist: function(name) {
-	    		alert("Not supported yet!");
+	    		alert(language.gettext("label_notsupported"));
 	    	},
 
 	    	clearPlaylist: function() {
@@ -322,7 +314,7 @@ function multiProtocolController() {
 	                        dataType: "json",
 	                        success: playlist.newXSPF,
 	                        error: function(data) {
-	                            infobar.notify(infobar.ERROR, "Something went wrong retrieving the playlist!");
+	                            infobar.notify(infobar.ERROR, language.gettext("label_playlisterror"));
 	                            playlist.updateFailure();
 	                        }
 	                    });
@@ -352,10 +344,11 @@ function multiProtocolController() {
 	                }
 	                prefssave['search_limit_'+$(this).attr("value")] = $(this).is(':checked') ? 1 : 0;
 	            });
+	            debug.log("PLAYER","Saving search prefs",prefssave);
 	            prefs.save(prefssave);
 	            if (cunt > 0 && (!($("#limitsearch").is(':checked')) || fanny > 0)) {
 	                $("#searchresultholder").empty();
-	                doSomethingUseful('searchresultholder', 'Searching...');
+	                doSomethingUseful('searchresultholder', language.gettext("label_searching"));
 	                debug.log("PLAYER","Doing Search:", terms, domains);
 	                mopidy.library[searchtype](terms, domains).then( function(data) {
 	                    debug.log("PLAYER","Search Results",data);
@@ -433,23 +426,13 @@ function multiProtocolController() {
 	    	},
 
 	    	removeId: function(ids) {
-	    		debug.log("PLAYER","Removing Tracks",ids);
-	    		playlist.ignoreupdates(ids.length-1);
-	    		for (var i in ids) {
-	    			mopidy.tracklist.remove({tlid: parseInt(ids[i])});
-	    		}
-	    		// (function riterator() {
-	    		// 	var id = ids.shift();
-	    		// 	if (id !== undefined) {
-			    // 		debug.log("PLAYER","Removing ID",id);
-		    	// 		mopidy.tracklist.remove({tlid: parseInt(id)}).then( riterator );
-	    		// 	}
-	    		// })();
+	    		debug.log("PLAYER","Removing Tracks",ids,ids.length);
+	    		mopidy.tracklist.remove({'tlid': ids});
 	    	},
 
 	    	toggleRandom: function() {
-	    		mopidy.playback.getRandom().then( function(data) {
-	    			mopidy.playback.setRandom(!data);
+	    		mopidy.tracklist.getRandom().then( function(data) {
+	    			mopidy.tracklist.setRandom(!data);
 	    			var new_value = (data) ? 0 : 1;
 				    $("#random").attr("src", prefsbuttons[new_value]);
 				    self.status.random = new_value;
@@ -457,16 +440,16 @@ function multiProtocolController() {
 	    	},
 
 	    	toggleCrossfade: function() {
-	    		infobar.notify(infobar.NOTIFY, "Mopidy does not support crossfading");
+	    		infobar.notify(infobar.NOTIFY, language.gettext("label_notsupported"));
 	    	},
 
 	    	setCrossfade: function(v) {
-	    		infobar.notify(infobar.NOTIFY, "Mopidy does not support crossfading");
+	    		infobar.notify(infobar.NOTIFY, language.gettext("label_notsupported"));
 	    	},
 
 	    	toggleRepeat: function() {
-	    		mopidy.playback.getRepeat().then( function(data) {
-	    			mopidy.playback.setRepeat(!data);
+	    		mopidy.tracklist.getRepeat().then( function(data) {
+	    			mopidy.tracklist.setRepeat(!data);
 	    			var new_value = (data) ? 0 : 1;
 				    $("#repeat").attr("src", prefsbuttons[new_value]);
 				    self.status.repeat = new_value;
@@ -474,8 +457,8 @@ function multiProtocolController() {
 	    	},
 
 	    	toggleConsume: function() {
-	    		mopidy.playback.getConsume().then( function(data) {
-	    			mopidy.playback.setConsume(!data);
+	    		mopidy.tracklist.getConsume().then( function(data) {
+	    			mopidy.tracklist.setConsume(!data);
 	    			var new_value = (data) ? 0 : 1;
 				    $("#consume").attr("src", prefsbuttons[new_value]);
 				    self.status.consume = new_value;
@@ -483,7 +466,7 @@ function multiProtocolController() {
 	    	},
 
 	    	addTracks: function(tracks, playpos, at_pos) {
-	    		infobar.notify(infobar.NOTIFY, "Adding Tracks");
+	    		infobar.notify(infobar.NOTIFY, language.gettext("label_addingtracks"));
 	    		debug.log("PLAYER","Adding Tracks",tracks,playpos,at_pos);
 	    		var started = false;
 	    		if (tracks.length == 0) { return }
@@ -548,7 +531,7 @@ function multiProtocolController() {
 						    		debug.log("PLAYER","addTracks Deleting ID",t.name);
 					    			// Yes it's odd to call addTracks to delete tracks, but we need this for Last.FM
 					    			// ONLY use it there.
-					    			mopidy.tracklist.remove({tlid: parseInt(t.name)}).then( iterator );
+					    			mopidy.tracklist.remove({'tlid': [parseInt(t.name)]}).then( iterator );
 					    			break;
 
 				    		}
@@ -565,11 +548,11 @@ function multiProtocolController() {
 
 	    	stopafter: function() {
 	            if (self.status.repeat == 1) {
-	            	mopidy.playback.setRepeat(false);
+	            	mopidy.tracklist.setRepeat(false);
 	                $("#repeat").attr("src", prefsbuttons[0]);
-	                self.status.repeat = 1;
+	                self.status.repeat = 0;
 	            }
-            	mopidy.playback.setSingle(true)
+            	mopidy.tracklist.setSingle(true)
             	self.status.single = 1;
 	    	}
 
@@ -661,8 +644,8 @@ function multiProtocolController() {
 		    },
 
 		    updateCollection: function(cmd) {
-		        prepareForLiftOff("Updating Collection");
-		        prepareForLiftOff2("Scanning Files");
+		        prepareForLiftOff(language.gettext("label_updating"));
+		        prepareForLiftOff2(language.gettext("label_updating"));
 	            $.getJSON("ajaxcommand.php", "command="+cmd, function() {
 	                        update_load_timer = setTimeout( pollAlbumList, 2000);
 	                        update_load_timer_running = true;
@@ -699,7 +682,7 @@ function multiProtocolController() {
 	                dataType: "json",
 	                success: playlist.newXSPF,
 	                error: function(data) {
-	                    alert("Something went wrong retrieving the playlist!");
+	                    alert(language.gettext("label_playlisterror"));
 	                }
 	            });
 	    	},
@@ -749,7 +732,7 @@ function multiProtocolController() {
 	            if (player.status.state != "stop") {
     	            this.command("command=setvol&arg="+parseInt(volume.toString()), callback);
     	        } else {
-	                infobar.notify(infobar.ERROR, "MPD cannot adjust volume while playback is stopped");
+	                infobar.notify(infobar.ERROR, language.gettext("label_mpd_no"));
 	                volumeslider.restoreState();
     	        }
 	    	},
@@ -794,7 +777,8 @@ function multiProtocolController() {
 	    	},
 
 	    	addTracks: function(tracks, playpos, at_pos) {
-	    		infobar.notify(infobar.NOTIFY, "Adding Tracks",playpos,at_pos);
+	    		infobar.notify(infobar.NOTIFY, language.gettext("label_addingtracks"));
+	    		debug.log("MPD","Adding Tracks",tracks,playpos,at_pos);
 	    		var cmdlist = [];
 	    		var pl = self.status.playlistlength;
 	    		$.each(tracks, function(i,v) {
@@ -813,6 +797,7 @@ function multiProtocolController() {
 							if (playpos && playpos > -1) {
 								playpos--;
 							}
+							pl--;
 		    				break;
 		    		}
 	    		});
@@ -822,7 +807,7 @@ function multiProtocolController() {
 					cmdlist.push('play "'+playpos.toString()+'"');
 				}
 				this.do_command_list(cmdlist, function() {
-					if (at_pos) {
+					if (at_pos == 0 || at_pos) {
 						self.mpd.move(pl, self.status.playlistlength - pl, at_pos);
 					} else {
 						playlist.repopulate();
@@ -835,6 +820,7 @@ function multiProtocolController() {
 	    		if (num > 1) {
 	    			itemstomove = itemstomove + ":" + (parseInt(first)+parseInt(num));
 	    		}
+	    		debug.log("PLAYER", "Move command is move&arg="+itemstomove+"&arg2="+moveto);
 	    		this.command("command=move&arg="+itemstomove+"&arg2="+moveto, playlist.repopulate);
 	    	},
 
@@ -857,7 +843,7 @@ function multiProtocolController() {
     this.controller = this.mpd;
 
     this.loadCollection = function() {
-	    if (prefs.use_mopidy_http == 0) {
+	    if (!prefs.mopidy_detected) {
 	    	debug.log("MPD", "Checking Collection");
 	    	checkCollection();
 	    } else {
@@ -867,13 +853,15 @@ function multiProtocolController() {
 	    }
     }
 
-    if (prefs.use_mopidy_http == 1) {
+    if (prefs.mopidy_detected) {
         debug.log("PLAYER","Connecting to Mopidy HTTP frontend");
         mopidy = new Mopidy({
-            webSocketUrl: "ws://"+prefs.mpd_host+":"+prefs.mopidy_http_port+"/mopidy/ws/"
+            webSocketUrl: "ws://"+prefs.mopidy_http_address+":"+prefs.mopidy_http_port+"/mopidy/ws/"
         });
         mopidy.on("state:online", this.http.connected);
         mopidy.on("state:offline", this.http.disconnected);
+        // mop is for debugging and testing - it can be called from the browser's
+        // javascript console as player.mop. DO NOT use it in code.
 	    this.mop = mopidy;
     }
 
